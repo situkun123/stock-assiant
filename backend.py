@@ -65,7 +65,7 @@ if __name__ == "__main__":
     nvda = CompanyData("NVDA")
 
     # 1. Get the summary
-    stats = nvda.get_info()
+    stats = nvda.get_ticker_data(period='1week')
     print(stats)
     # print(type(stats))
 
