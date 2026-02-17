@@ -10,6 +10,16 @@ terraform {
 provider "koyeb" {
 }
 
+import {
+  to = koyeb_app.stock_assistant
+  id = "stock-assistant"
+}
+
+import {
+  to = koyeb_service.stock_assistant
+  id = "stock-assistant/stock-assistant-service"
+}
+
 resource "koyeb_app" "stock_assistant" {
   name = var.app_name
 }
@@ -40,7 +50,7 @@ resource "koyeb_service" "stock_assistant" {
       port     = 8000
       protocol = "http"
     }
-    
+
     routes {
       port = 8000
       path = "/"
