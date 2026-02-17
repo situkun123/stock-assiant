@@ -6,8 +6,8 @@ The Stock Assistant is a tool designed to help users manage and analyze stock ma
 ## Folder Structure
 ```
 stock-assiant/
-├── app.py                # Main application file
-├── chainlit.md          # Documentation for Chainlit integration
+├── app.py                # Main application file using chanilit
+├── chainlit.md           # Documentation for Chainlit integration
 ├── docker-compose.yml    # Docker Compose configuration
 ├── Dockerfile            # Dockerfile for building the application
 ├── README.md             # Project documentation

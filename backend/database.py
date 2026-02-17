@@ -1,7 +1,8 @@
-import duckdb
-import os
 import json
-from typing import Optional, Dict
+import os
+
+import duckdb
+
 
 class Logger:
     def __init__(self, database_name: str, token: str = None):
@@ -10,7 +11,7 @@ class Logger:
             self.token = token or os.getenv("DUCK_DB_TOKEN")
             if not self.token:
                 raise ValueError("MotherDuck token not provided and DUCK_DB_TOKEN environment variable not set")
-            
+
             self.database_name = database_name
             self.conn_str = f"md:{database_name}?motherduck_token={self.token}"
             self.conn = None
@@ -50,29 +51,29 @@ class Logger:
             print("✓ Table 'agent_runs' is ready")
         except Exception as e:
             raise RuntimeError(f"Unexpected error creating table: {e}")
-        
+
     def _truncate_text(self, text: str, max_length: int = None) -> str:
         """Truncate text to maximum length with ellipsis."""
         if max_length is None:
             max_length = self.max_length
-            
+
         if len(text) <= max_length:
             return text
-        
+
         return text[:max_length - 3] + "..."
 
     def log_agent_run(self, query: str, response: str, metadata: dict):
         """Inserts agent execution data into MotherDuck."""
         if not self.conn:
             self.connect()
-        
+
         # Convert tools list to JSON string for storage
         tools_json = json.dumps(metadata.get("tools_used", []))
-        
+
         # Truncate query and response
         truncated_query = self._truncate_text(query)
         truncated_response = self._truncate_text(response)
-        
+
         # Log if truncation occurred
         if len(query) > self.max_length:
             print(f"ℹ️  Query truncated from {len(query)} to {self.max_length} characters")
@@ -83,11 +84,11 @@ class Logger:
         VALUES (?, ?, ?, ?, ?, ?)
         """
         self.conn.execute(insert_query, (
-            truncated_query, 
-            truncated_response, 
-            metadata['total_tokens'], 
-            metadata['total_cost_usd'], 
-            metadata['tool_calls'], 
+            truncated_query,
+            truncated_response,
+            metadata['total_tokens'],
+            metadata['total_cost_usd'],
+            metadata['tool_calls'],
             tools_json
         ))
         print("Successfully logged run to MotherDuck.")

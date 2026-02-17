@@ -1,8 +1,10 @@
+import os
+
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
+
 from backend.stock_fetcher import CompanyData
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage
 
 # ============================================================================
 # CACHE
@@ -27,11 +29,11 @@ def get_cached_companies():
 def get_stock_symbol(company_name: str) -> str:
     """Convert a company name to its stock ticker symbol using LLM knowledge. The stock ticker symbol (e.g., 'AAPL', 'MSFT')"""
     llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-    
+
     prompt = f"""What is the stock ticker symbol for {company_name}? 
             Return ONLY the ticker symbol, nothing else. 
             If you're not sure or the company is not publicly traded, return 'UNKNOWN'."""
-    
+
     response = llm.invoke(prompt)
     return response.content.strip()
 
@@ -74,19 +76,19 @@ def correct_period_parameter(invalid_period: str) -> str:
         '5y': '5y',
         '10y': '10y',
     }
-    
+
     # check for direct mapping first
     period_lower = invalid_period.lower().strip()
     if period_lower in period_mapping:
         return period_mapping[period_lower]
-    
+
     # LLM fallback for edge cases
     correction_llm = ChatOpenAI(
         model="gpt-4o-mini",
         api_key=os.getenv("OPENAI_API_KEY"),
         temperature=0
     )
-    
+
     correction_prompt = f"""Given the invalid period '{invalid_period}', map it to the nearest valid option.
         Valid periods: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max
         Return ONLY the corrected period value, nothing else."""
@@ -95,13 +97,13 @@ def correct_period_parameter(invalid_period: str) -> str:
         SystemMessage(content="Map invalid period to nearest valid option."),
         HumanMessage(content=correction_prompt)
     ])
-    
+
     corrected = correction_response.content.strip()
-    
+
     # Validate the response is actually valid
     valid_periods = ['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max']
     if corrected in valid_periods:
         return corrected
-    
+
     # Default fallback
     return '1mo'

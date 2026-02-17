@@ -1,6 +1,13 @@
 import chainlit as cl
-from langchain_core.messages import SystemMessage, HumanMessage
-from backend.agent import create_financial_agent, run_financial_agent, get_cached_companies
+
+from backend.agent import (
+    create_financial_agent,
+    run_financial_agent,
+)
+
+from backend.tools import (
+    get_cached_companies,
+)
 
 
 @cl.on_chat_start
@@ -8,7 +15,7 @@ async def start():
     """Initialize the agent when a new chat session starts."""
     app = create_financial_agent()
     cl.user_session.set("agent", app)
-    
+
     await cl.Message(
         content="👋 Welcome to the Financial Analysis Assistant! Ask me about stock comparisons, company info, or financial metrics. Try: 'Compare TSLA and F' or 'What's the P/E ratio of AAPL?'"
     ).send()
@@ -21,7 +28,7 @@ async def main(message: cl.Message):
     msg = cl.Message(content="")
     await msg.send()
     response, cost = run_financial_agent(app, message.content, enable_logging=True)
-    
+
     # Update the message with the result
     msg.content = response
     await msg.update()
@@ -30,7 +37,7 @@ async def main(message: cl.Message):
         tools_str = ', '.join([f"{tool}: {count}" for tool, count in cost['tools_used'].items()])
     else:
         tools_str = 'None'
-    
+
     cost_info = f"""
             📊 **Usage Statistics:**
             - Total Tokens: {cost['total_tokens']:,}
