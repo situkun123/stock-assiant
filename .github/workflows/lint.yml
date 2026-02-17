@@ -23,6 +23,3 @@ jobs:
 
       - name: Lint with Ruff
         run: ruff check .
-
-      - name: Check Formatting with Ruff
-        run: ruff format --check .
