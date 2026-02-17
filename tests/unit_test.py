@@ -1,16 +1,10 @@
 import unittest
-from unittest import result
 from unittest.mock import MagicMock, patch
 
-from backend.agent import should_continue
-from backend.database import Logger
-from backend.utils import calculate_number_of_tokens
-from backend.stock_fetcher import *
-# from backend.tools import (
-#     get_stock_symbol, 
-#     get_stock_history, 
-#     correct_period_parameter
-# )
+import pandas as pd
+
+from backend.stock_fetcher import CompanyData
+
 
 class TestCompanyData(unittest.TestCase):
     def setUp(self):
@@ -59,37 +53,9 @@ class TestCompanyData(unittest.TestCase):
         """Test get_ticker_data returns empty DataFrame on failure."""
         with patch.object(CompanyData, 'safe_get', return_value=None):
             df = self.company_data.get_ticker_data()
-        
+
         self.assertTrue(df.empty)
         self.assertIsInstance(df, pd.DataFrame)
-
-# class TestLoggerTruncateText(unittest.TestCase):
-#     def setUp(self):
-#         """Create a Logger instance without triggering a real DB connection."""
-#         self.logger = Logger.__new__(Logger)
-#         self.logger.max_length = 20
-
-#     def test_short_text_is_not_truncated(self):
-#         """Text shorter than max_length should be returned unchanged."""
-#         self.assertEqual(self.logger._truncate_text("short"), "short")
-
-#     def test_long_text_is_truncated_with_ellipsis(self):
-#         """Text exceeding max_length should be cut and end with '...'."""
-#         result = self.logger._truncate_text("A" * 30)
-#         self.assertTrue(result.endswith("..."))
-#         self.assertEqual(len(result), 20)
-
-#     def test_exact_length_text_is_not_truncated(self):
-#         """Text exactly at max_length should not be truncated."""
-#         text = "A" * 20
-#         self.assertEqual(self.logger._truncate_text(text), text)
-
-#     def test_custom_max_length_override(self):
-#         """Passing a custom max_length should override the instance default."""
-#         result = self.logger._truncate_text("Hello World!", max_length=8)
-#         self.assertEqual(result, "Hello...")
-#         self.assertEqual(len(result), 8)
-
 
 if __name__ == "__main__":
     unittest.main()
