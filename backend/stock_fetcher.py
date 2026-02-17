@@ -1,10 +1,5 @@
 import yfinance as yf
 import pandas as pd
-import time
-import os
-import random  # Added missing import
-from pprint import pprint
-import tabulate
 
 class CompanyData:
     '''Use yfinance to fetch financial data for a given ticker symbol.'''

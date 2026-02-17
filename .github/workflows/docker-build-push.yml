@@ -1,0 +1,68 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches:
+      - main        # Trigger on push to main
+  pull_request:
+    branches:
+      - main        # Run on PRs to main (build only, no push)
+  workflow_dispatch:  # Allow manual trigger from GitHub UI
+
+env:
+  IMAGE_NAME: stock-assistant
+  REGISTRY: docker.io
+
+jobs:
+  build-and-push:
+    name: Build and Push to DockerHub
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout code
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Step 2: Set up Docker Buildx for multi-platform builds
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Step 3: Login to DockerHub
+      - name: Login to DockerHub
+        if: github.event_name != 'pull_request'  # Don't push on PRs
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Step 4: Generate image metadata and tags
+      - name: Extract Docker Metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # Tag with branch name
+            type=ref,event=branch
+            # Tag with PR number
+            type=ref,event=pr
+            # Tag with short git SHA
+            type=sha,prefix=sha-
+            # Tag as latest on main branch only
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      # Step 5: Build and push
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          dockerfile: Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}  # Only push on non-PRs
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha       # Use GitHub Actions cache
+          cache-to: type=gha,mode=max
+
+      # Step 6: Print image digest
+      - name: Print Image Digest
+        run: echo "Image pushed with digest ${{ steps.build-and-push.outputs.digest }}"

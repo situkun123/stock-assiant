@@ -54,10 +54,11 @@ edit_message = true
 
 [UI]
 # Name of the assistant.
-name = "Assistant"
+name = "Stock Analysis AI Assistant"
+logo = "frontend/logo.png"
 
 # Description of the assistant. This is used for HTML tags.
-# description = ""
+# description = "SAAA"
 
 # Large size content are by default collapsed for a cleaner ui
 default_collapse_content = true
