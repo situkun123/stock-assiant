@@ -18,11 +18,11 @@ resource "koyeb_service" "stock_assistant" {
   app_name = koyeb_app.stock_assistant.name
 
   definition {
-    name = "${var.app_name}-service"
+    name    = "${var.app_name}-service"
     regions = [var.region]
     docker {
-      image = var.docker_image  # e.g., "your-dockerhub-username/stock-assistant:latest"
-      image_registry_secret = var.registry_secret  # Optional: for private registries
+      image                 = var.docker_image    # e.g., "your-dockerhub-username/stock-assistant:latest"
+      image_registry_secret = var.registry_secret # Optional: for private registries
     }
 
     env {
@@ -60,7 +60,7 @@ resource "koyeb_service" "stock_assistant" {
     }
 
     instance_types {
-      type = "free"  # nano, micro, small, medium, large, xlarge
+      type = "free" # nano, micro, small, medium, large, xlarge
     }
   }
 

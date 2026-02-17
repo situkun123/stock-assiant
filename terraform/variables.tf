@@ -32,7 +32,7 @@ variable "duck_db_token" {
 variable "region" {
   description = "Koyeb deployment region"
   type        = string
-  default     = "fra"  
+  default     = "fra"
 }
 
 variable "instance_type" {
