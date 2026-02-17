@@ -1,0 +1,39 @@
+name: Deploy to Koyeb
+
+on:
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: stock-assistant
+  TF_WORKING_DIR: ./terraform
+  TF_VERSION: "1.6.0"
+  KOYEB_TOKEN: ${{ secrets.KOYEB_TOKEN }}
+  TF_VAR_openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+  TF_VAR_duck_db_token: ${{ secrets.DUCK_DB_TOKEN }}
+  TF_VAR_docker_image: ${{ secrets.DOCKERHUB_USERNAME }}/stock-assistant:latest
+
+jobs:
+  deploy:
+    name: Deploy to Koyeb via Terraform
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform plan       
+
+      - name: Terraform Apply
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform apply -auto-approve  
