@@ -1,4 +1,5 @@
 import os
+import sqlite3
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -8,11 +9,10 @@ from dotenv import load_dotenv
 from langchain_community.callbacks import get_openai_callback
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
+from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
-from langgraph.checkpoint.sqlite import SqliteSaver 
-import sqlite3
 
 from backend.database import Logger
 from backend.tools import (
@@ -104,7 +104,7 @@ def run_financial_agent(app, user_query: str, thread_id: str = "default", enable
         result = app.invoke({"messages": initial_messages}, config=config)
         tool_calls = 0
         tools_used = {}
-        
+
         for message in result["messages"]:
             if hasattr(message, "tool_calls") and message.tool_calls:
                 tool_calls += len(message.tool_calls)
