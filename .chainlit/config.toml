@@ -33,7 +33,7 @@ edit_message = true
 
 # Authorize users to spontaneously upload files with messages
 [features.spontaneous_file_upload]
-    enabled = true
+    enabled = false
     accept = ["*/*"]
     max_files = 20
     max_size_mb = 500
@@ -119,4 +119,4 @@ cot = "full"
         #secondary = "#BDBDBD"
 
 [meta]
-generated_by = "1.2.0"
+generated_by = "2.9.6"

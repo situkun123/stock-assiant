@@ -26,17 +26,40 @@ def get_cached_companies():
 # TOOLS
 # ============================================================================
 @tool
-def get_stock_symbol(company_name: str) -> str:
-    """Convert a company name to its stock ticker symbol using LLM knowledge. The stock ticker symbol (e.g., 'AAPL', 'MSFT')"""
+def validate_stock_symbol(symbol: str) -> str:
+    """
+    Validate if a stock symbol is correct for Yahoo Finance and suggest corrections if needed use LLM.
+    """
     llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
-    prompt = f"""What is the stock ticker symbol for {company_name}? 
-            Return ONLY the ticker symbol, nothing else. 
-            If you're not sure or the company is not publicly traded, return 'UNKNOWN'."""
+    prompt = f"""Validate the stock ticker symbol '{symbol}' for Yahoo Finance.
+
+        Instructions:
+        1. If '{symbol}' is a valid Yahoo Finance ticker, respond with: "VALID: {symbol}"
+        2. If '{symbol}' is incorrect but you know the correct ticker, respond with: "CORRECTED: [correct_symbol] (was: {symbol})"
+        3. If '{symbol}' looks like a company name instead of a ticker, respond with: "SYMBOL: [ticker] (for company: {symbol})"
+        4. If you're not sure or it's not publicly traded, respond with: "UNKNOWN: {symbol}"
+
+        Examples:
+        - Input: "AAPL" → "VALID: AAPL"
+        - Input: "APPL" → "CORRECTED: AAPL (was: APPL)"
+        - Input: "Apple" → "SYMBOL: AAPL (for company: Apple)"
+        - Input: "GOOG" → "CORRECTED: GOOGL (was: GOOG)" [Note: GOOGL is the primary ticker]
+        - Input: "XYZ123" → "UNKNOWN: XYZ123"
+
+        Respond with ONLY one of the formats above, nothing else."""
 
     response = llm.invoke(prompt)
     return response.content.strip()
 
+@tool
+def search_stock_symbol(company_name: str) -> str:
+    """Search for a stock ticker symbol for a given company name."""
+    try: 
+        output = CompanyData.search_stock_symbol(company_name)
+        return output['found']['symbol'][:3]  # Return the best match symbol, truncated to 3 for cost control
+    except Exception:
+        return "UNKNOWN"
 @tool
 def get_company_info(ticker: str):
     """Fetch key company metrics like P/E ratio, Market Cap, and business summary."""

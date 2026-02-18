@@ -3,6 +3,9 @@
 ## Project Overview
 The Stock Assistant is a tool designed to help users manage and analyze stock market data by using OpenAI ChatGPT. It provides functionalities for fetching stock information, performing analyses, and generating reports.
 
+## Agent Graph
+![Financial Agent Graph](financial_agent_graph.png)
+
 ## Folder Structure
 ```
 stock-assiant/
@@ -12,7 +15,9 @@ stock-assiant/
 ├── Dockerfile            # Dockerfile for building the application
 ├── README.md             # Project documentation
 ├── requirements.txt      # Python dependencies
-├── test.py               # Test scripts
+tests/
+├── __init__.py
+└── unit_test.py
 ├── backend/              # Backend logic
 │   ├── __init__.py
 │   ├── agent.py          # Stock agent logic
@@ -24,11 +29,10 @@ stock-assiant/
 └── terraform/            # Infrastructure as code for web deployment
     ├── main.tf
     ├── outputs.tf
-    ├── terraform.tfstate
-    ├── terraform.tfstate.backup
     ├── terraform.tfvars
     └── variables.tf
 ```
+
 
 ## How to Use using Docker Compose (development and testing)
 
