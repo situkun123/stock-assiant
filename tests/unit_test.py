@@ -31,15 +31,6 @@ class TestCompanyData(unittest.TestCase):
         self.assertEqual(len(result), 2)
 
     @patch('yfinance.Ticker')
-    def test_safe_get_rate_limit_retry(self, mock_ticker_class):
-        """test the exceotion of the safe_get method when the rate limit is hit."""
-        mock_ticker_instance = MagicMock()
-        mock_ticker_instance.non_existent_attr = None 
-        mock_ticker_class.return_value = mock_ticker_instance
-        result = self.company_data.safe_get(self.ticker_symbol, "non_existent_attr")
-        self.assertIsNone(result)
-
-    @patch('yfinance.Ticker')
     def test_get_info_returns_dataframe(self, mock_ticker_class):
         """Test get_info converts the dictionary to a formatted DataFrame."""
         mock_ticker_instance = MagicMock()

@@ -1,13 +1,11 @@
-import os
-from pathlib import Path
 
 import pandas as pd
 import requests
 import yfinance as yf
 
-CACHE_DIR = Path(os.environ.get("YF_CACHE_DIR", "/app/data/yf_cache"))
-CACHE_DIR.mkdir(parents=True, exist_ok=True)
-yf.set_tz_cache_location(str(CACHE_DIR))
+# CACHE_DIR = Path(os.environ.get("YF_CACHE_DIR", "/app/data/yf_cache"))
+# CACHE_DIR.mkdir(parents=True, exist_ok=True)
+# yf.set_tz_cache_location(str(CACHE_DIR))
 
 class CompanyData:
     '''Use yfinance to fetch financial data for a given ticker symbol.'''
@@ -124,7 +122,7 @@ if __name__ == "__main__":
 
     # 1. Get the summary
     # stats = nvda.get_ticker_data(period='1week')
-    data = CompanyData.search_stock_symbol("lloyd bank")
+    data = CompanyData.search_stock_symbol("Tell me about Tesla")
     from pprint import pprint
     pprint(data['matches'])
     # print(stats)

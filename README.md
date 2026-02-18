@@ -38,7 +38,7 @@ tests/
 
 1. **Clone the repository:**
 ```bash
-   git clone https://github.com/situkun123/stock-assiant.git
+   git clone https://github.com/situkun123/stock-assistant.git
    cd stock-assiant
 ```
 
@@ -52,6 +52,8 @@ tests/
    DUCK_DB_TOKEN=your_motherduck_token
    DOCKER_USERNAME=your_dockerhub_username
    DOCKER_PASSWORD=your_dockerhub_password
+   AUTH_USERS=user1:pass1,user2:pass2
+   CHAINLIT_AUTH_SECRET=your_chainlit_auth_secret #can be any random string, used to secure the Chainlit dashboard
 ```
 
 3. **Run with Docker Compose:**
@@ -131,5 +133,5 @@ tests/
 ```
    GitHub Repo → Settings → Secrets and variables → Actions → Secrets tab
 ```
-### Using GitHub Actions Workflow (Recommended) 
+### Using GitHub Actions Workflow 
 - Workflow called **Deploy to Koyeb** triggers manually in the action section of GitHub.

@@ -15,7 +15,7 @@ ENABLE_LOGGING = os.getenv("ENABLE_LOGGING", "false").lower() == "true"
 load_dotenv()
 
 def load_users():
-    """Load users from AUTH_USERS env variable (format: user1:pass1,user2:pass2)."""
+    """Load users from AUTH_USERS env variable"""
     users_str = os.getenv("AUTH_USERS")
     if not users_str:
         raise ValueError("AUTH_USERS environment variable is not set.")
