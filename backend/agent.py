@@ -20,7 +20,8 @@ from backend.tools import (
     get_company_info,
     get_financial_statements,
     get_stock_history,
-    get_stock_symbol,
+    search_stock_symbol,
+    validate_stock_symbol,
 )
 
 root_dir = Path(__file__).resolve().parent.parent
@@ -59,7 +60,13 @@ def should_continue(state: AgentState):
 # ============================================================================
 def create_financial_agent():
     """Create financial analysis agent using LangGraph StateGraph."""
-    tools = [get_stock_symbol, get_company_info, get_stock_history, get_financial_statements, correct_period_parameter]
+    tools = [validate_stock_symbol, 
+             get_company_info, 
+             get_stock_history, 
+             get_financial_statements, 
+             correct_period_parameter,
+             search_stock_symbol]
+
     model = ChatOpenAI(
         model="gpt-4o-mini",
         api_key=os.getenv("OPENAI_API_KEY"),
@@ -88,11 +95,18 @@ def create_financial_agent():
 def run_financial_agent(app, user_query: str, thread_id: str = "default", enable_logging: bool = True):
     """Execute agent and return response with cost breakdown."""
 
-    system_prompt = """You are a financial analysis assistant. Your role is to:
+    system_prompt = """
+                You are a financial analysis assistant. Your role is to:
                 - Analyze stock data and financial statements objectively
                 - Provide clear, data-driven insights
                 - Use available tools to gather accurate information
-                - Always cite your data sources"""
+                - Always cite your data sources
+
+                 When working with stock symbols:
+                1. If a user provides a symbol, validate it using validate_stock_symbol first
+                2. If validation fails, try search_stock_symbol with the company name
+                3. If you get a company name instead of symbol, use search_stock_symbol to find the correct ticker
+                4. Always confirm the symbol is valid before fetching data"""
 
     initial_messages = [
         SystemMessage(content=system_prompt),

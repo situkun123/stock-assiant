@@ -14,6 +14,9 @@ services:
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - DUCK_DB_TOKEN=${DUCK_DB_TOKEN}
+      - ENABLE_LOGGING=false
+      - AUTH_USERS=${AUTH_USERS}
+      - CHAINLIT_AUTH_SECRET=${CHAINLIT_AUTH_SECRET}
     volumes:
       - checkpoints-local:/app/data
     restart: unless-stopped
@@ -37,6 +40,7 @@ services:
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - DUCK_DB_TOKEN=${DUCK_DB_TOKEN}
+      - ENABLE_LOGGING=true
     volumes:
       - checkpoints-hub:/app/data     
     restart: unless-stopped
