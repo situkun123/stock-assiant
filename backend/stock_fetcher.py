@@ -1,10 +1,11 @@
+import os
 from pathlib import Path
 
 import pandas as pd
 import requests
 import yfinance as yf
 
-CACHE_DIR = Path("/app/data/yf_cache")
+CACHE_DIR = Path(os.environ.get("YF_CACHE_DIR", "/app/data/yf_cache"))
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 yf.set_tz_cache_location(str(CACHE_DIR))
 

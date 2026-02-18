@@ -28,10 +28,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           
-      - name: Set up cache directory
-        run: mkdir -p data/yf_cache
-
       - name: Run Unit Tests
+        env:
+          YF_CACHE_DIR: ${{ github.workspace }}/data/yf_cache
         run: |
           python -m unittest tests/unit_test.py -v
           echo "✅ Unit tests completed"
