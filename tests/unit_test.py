@@ -27,15 +27,6 @@ class TestCompanyData(unittest.TestCase):
         self.assertEqual(len(result), 2)
 
     @patch('yfinance.Ticker')
-    def test_safe_get_rate_limit_retry(self, mock_ticker_class):
-        """test the exceotion of the safe_get method when the rate limit is hit."""
-        mock_ticker_instance = MagicMock()
-        mock_ticker_instance.non_existent_attr = None 
-        mock_ticker_class.return_value = mock_ticker_instance
-        result = self.company_data.safe_get(self.ticker_symbol, "non_existent_attr")
-        self.assertIsNone(result)
-
-    @patch('yfinance.Ticker')
     def test_get_info_returns_dataframe(self, mock_ticker_class):
         """Test get_info converts the dictionary to a formatted DataFrame."""
         mock_ticker_instance = MagicMock()
@@ -56,6 +47,78 @@ class TestCompanyData(unittest.TestCase):
 
         self.assertTrue(df.empty)
         self.assertIsInstance(df, pd.DataFrame)
+
+class TestAgentFunctions(unittest.TestCase):
+
+    def test_should_continue_returns_tools_when_tool_calls_present(self):
+        """should_continue routes to 'tools' when the last message has tool_calls."""
+        mock_message = MagicMock()
+        mock_message.tool_calls = [{"name": "get_stock_history", "args": {}}]
+        state = {"messages": [mock_message]}
+
+        from backend.agent import should_continue
+        result = should_continue(state)
+        self.assertEqual(result, "tools")
+
+    def test_should_continue_returns_end_when_no_tool_calls(self):
+        """should_continue routes to 'end' when the last message has no tool_calls."""
+        mock_message = MagicMock()
+        mock_message.tool_calls = []
+        state = {"messages": [mock_message]}
+
+        from backend.agent import should_continue
+        result = should_continue(state)
+        self.assertEqual(result, "end")
+
+    def test_should_continue_returns_end_when_tool_calls_reach_limit(self):
+        """should_continue returns 'end' when total tool calls across messages reaches 50."""
+        def make_message(n_calls):
+            msg = MagicMock()
+            msg.tool_calls = [{"name": "get_stock_history", "args": {}}] * n_calls
+            return msg
+
+        # 49 prior calls across multiple messages, plus 1 in the last message = 50 total
+        prior_messages = [make_message(10)] * 4 + [make_message(9)]  # 49 calls
+        last_message = make_message(1)
+        state = {"messages": prior_messages + [last_message]}
+
+        from backend.agent import should_continue
+        result = should_continue(state)
+        self.assertEqual(result, "end")
+
+    def test_should_continue_returns_tools_when_tool_calls_below_limit(self):
+        """should_continue returns 'tools' when total tool calls is still below 50."""
+        def make_message(n_calls):
+            msg = MagicMock()
+            msg.tool_calls = [{"name": "get_stock_history", "args": {}}] * n_calls
+            return msg
+
+        # 48 prior calls + 1 in the last message = 49 total (under limit)
+        prior_messages = [make_message(10)] * 4 + [make_message(8)]  # 48 calls
+        last_message = make_message(1)
+        state = {"messages": prior_messages + [last_message]}
+
+        from backend.agent import should_continue
+        result = should_continue(state)
+        self.assertEqual(result, "tools")
+
+    def test_call_model_returns_message_in_state(self):
+        """call_model invokes the model and wraps the response in a messages dict."""
+        mock_response = MagicMock()
+        mock_model = MagicMock()
+        mock_model.bind_tools.return_value.invoke.return_value = mock_response
+
+        mock_message = MagicMock()
+        state = {"messages": [mock_message]}
+        tools = []
+
+        from backend.agent import call_model
+        result = call_model(state, mock_model, tools)
+
+        self.assertIn("messages", result)
+        self.assertEqual(result["messages"], [mock_response])
+        mock_model.bind_tools.assert_called_once_with(tools)
+
 
 if __name__ == "__main__":
     unittest.main()

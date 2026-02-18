@@ -68,7 +68,15 @@ def get_company_info(ticker: str):
 
 @tool
 def get_stock_history(ticker: str, period: str = "1mo", interval: str = "1d"):
-    """Fetch daily price history (OHLCV) for a given ticker and period."""
+    """Fetch daily price history (OHLCV) for a given ticker and period.
+
+    IMPORTANT: The period must be one of the following valid values:
+    1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max
+
+    If the user requests a period that is NOT in the list above (e.g. '1w', '2w', '3m', 'week',
+    'month', 'year'), you MUST call correct_period_parameter first to get the valid equivalent,
+    then pass the corrected value here.
+    """
     client = get_company_client(ticker)
     return client.get_ticker_data(period=period, interval=interval).tail(10).to_string()
 
@@ -81,8 +89,10 @@ def get_financial_statements(ticker: str):
 @tool
 def correct_period_parameter(invalid_period: str) -> str:
     """
-    Correct invalid yfinance period parameters to the nearest valid option.
-    The corrected valid period parameter
+    Convert a user-supplied period string (e.g. '1w', '2w', '3m', 'week', 'month', 'year')
+    into the nearest valid yfinance period (1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max).
+    Call this BEFORE get_stock_history whenever the requested period is not already a valid value.
+    Returns the corrected valid period string.
     """
     # Direct mapping for common cases
     period_mapping = {
@@ -112,8 +122,9 @@ def correct_period_parameter(invalid_period: str) -> str:
         temperature=0
     )
 
-    correction_prompt = f"""Given the invalid period '{invalid_period}', map it to the nearest valid option.
-        Valid periods: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max
+    correction_prompt = f"""Given the invalid period '{invalid_period}'.
+        Map it to the nearest valid option, ALWAYS choosing one larger than the invalid value to ensure we get enough data. Valid periods are: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max.
+        Always choose a period that is larger than the invalid input to ensure sufficient data is returned.
         Return ONLY the corrected period value, nothing else."""
 
     correction_response = correction_llm.invoke([
