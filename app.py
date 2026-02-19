@@ -11,8 +11,9 @@ from backend.tools import (
     get_cached_companies,
 )
 
-ENABLE_LOGGING = os.getenv("ENABLE_LOGGING", "false").lower() == "true"
 load_dotenv()
+ENABLE_LOGGING = os.getenv("ENABLE_LOGGING", "false").lower() == "true"
+
 print(f"Logging enabled: {ENABLE_LOGGING}")
 
 def load_users():
