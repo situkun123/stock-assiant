@@ -33,27 +33,11 @@ if str(root_dir) not in sys.path:
 load_dotenv()
 
 # ============================================================================
-# STATE & GRAPH NODES 
+# STATE & GRAPH NODES
 # ============================================================================
-# Using agent state to dynamically route between agent and tools based on tool calls in messages. This allows the agent to decide when to call tools and when to end the conversation, while also preventing infinite loops with a max tool call limit.
 class AgentState(TypedDict):
     """State object that flows through the graph."""
     messages: Annotated[Sequence[BaseMessage], add_messages]
-
-
-def create_plan(state: AgentState, model, tools):
-    """First step: ask the LLM to produce a step-by-step plan before using any tools."""
-    tool_names = ", ".join(t.name for t in tools)
-    planning_prompt = (
-        f"Before taking any action, produce a concise numbered plan for how you will "
-        f"answer the user's question using only these tools: {tool_names}. "
-        f"Do NOT call any tools yet — only output the plan."
-        f"Note if using get_stock_history tool, Always check any time related parameters with correct_period_parameter tool first to ensure they are valid before calling get_stock_history."
-    )
-    planning_messages = state["messages"] + [SystemMessage(content=planning_prompt)]
-    plan = model.invoke(planning_messages)
-    # Inject the plan as a SystemMessage so the agent node sees it as context
-    return {"messages": [SystemMessage(content=f"Plan:\n{plan.content}")]}
 
 
 def call_model(state: AgentState, model, tools):
@@ -61,7 +45,6 @@ def call_model(state: AgentState, model, tools):
     model_with_tools = model.bind_tools(tools)
     response = model_with_tools.invoke(state["messages"])
     return {"messages": [response]}
-
 
 
 def should_continue(state: AgentState):
@@ -84,15 +67,8 @@ def should_continue(state: AgentState):
 # AGENT CREATION
 # ============================================================================
 def create_financial_agent():
-    """Create financial analysis agent using LangGraph StateGraph.
-    START → planner → agent → tools → agent → ... → END"""
-    tools = [validate_stock_symbol, 
-             get_company_info, 
-             get_stock_history, 
-             get_financial_statements, 
-             correct_period_parameter,
-             search_stock_symbol]
-
+    """Create financial analysis agent using LangGraph StateGraph."""
+    tools = [search_stock_symbol, get_company_info, get_stock_history, get_financial_statements, correct_period_parameter, validate_stock_symbol]
     model = ChatOpenAI(
         model="gpt-4o-mini",
         api_key=os.getenv("OPENAI_API_KEY"),
@@ -100,21 +76,21 @@ def create_financial_agent():
     )
 
     workflow = StateGraph(AgentState)
-    workflow.add_node("planner", lambda state: create_plan(state, model, tools))
     workflow.add_node("agent", lambda state: call_model(state, model, tools))
     workflow.add_node("tools", ToolNode(tools))
 
-    workflow.set_entry_point("planner")
-    workflow.add_edge("planner", "agent")
+    workflow.set_entry_point("agent")
     workflow.add_conditional_edges("agent", should_continue, {
         "tools": "tools",
         "end": END
     })
+    workflow.add_conditional_edges("agent",
+                                   lambda state: "tools" if state["messages"][-1].tool_calls else "__end__")
     workflow.add_edge("tools", "agent")
 
-    db_path = Path(os.getenv("CHECKPOINTS_DB", root_dir / "data" / "checkpoints.db"))
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(db_path), check_same_thread=False)
+    db_path = os.getenv("CHECKPOINT_DB_PATH", str(root_dir / "data" / "checkpoints.db"))
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path, check_same_thread=False)
     memory = SqliteSaver(conn)
 
     return workflow.compile(checkpointer=memory)
@@ -123,23 +99,11 @@ def create_financial_agent():
 def run_financial_agent(app, user_query: str, thread_id: str = "default", enable_logging: bool = True):
     """Execute agent and return response with cost breakdown."""
 
-    system_prompt = """
-                You are a financial analysis assistant. Your role is to:
+    system_prompt = """You are a financial analysis assistant. Your role is to:
                 - Analyze stock data and financial statements objectively
                 - Provide clear, data-driven insights
                 - Use available tools to gather accurate information
-                - Always cite your data sources
-
-                 When working with stock symbols:
-                1. If a user provides a symbol, validate it using validate_stock_symbol first
-                2. If validation fails, try search_stock_symbol with the company name
-                3. If you get a company name instead of symbol, use search_stock_symbol to find the correct ticker
-                4. Always confirm the symbol is valid before fetching data
-
-                When working with time periods:
-                5. Valid periods for get_stock_history are: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max before calling get_stock_history.
-                6. If the user requests a period NOT in that list (e.g. '1w', '2w', '3m', 'week', 'month', 'year'),
-                   call correct_period_parameter FIRST to get the valid equivalent, then pass it to get_stock_history"""
+                - Always cite your data sources"""
 
     initial_messages = [
         SystemMessage(content=system_prompt),
@@ -147,7 +111,6 @@ def run_financial_agent(app, user_query: str, thread_id: str = "default", enable
     ]
     config = {"configurable": {"thread_id": thread_id}}
 
-    # getting the API cost info
     with get_openai_callback() as cb:
         result = app.invoke({"messages": initial_messages}, config=config)
         tool_calls = 0
