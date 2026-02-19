@@ -58,14 +58,3 @@ variable "koyeb_org" {
   type        = string
   default     = "kunsitu"
 }
-
-variable "dockerhub_username" {
-  description = "DockerHub username for pulling private images"
-  type        = string
-}
-
-variable "dockerhub_token" {
-  description = "DockerHub personal access token"
-  type        = string
-  sensitive   = true
-}
