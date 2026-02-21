@@ -1,7 +1,11 @@
 import json
 import os
+import sqlite3
+from pathlib import Path
 
 import duckdb
+
+root_dir = Path(__file__).resolve().parent.parent
 
 
 class Logger:
@@ -96,3 +100,14 @@ class Logger:
     def close(self):
         if self.conn:
             self.conn.close()
+
+
+def clear_thread_checkpoints(thread_id: str):
+    """Clear checkpoints for a specific thread."""
+    db_path = os.getenv("CHECKPOINT_DB_PATH", str(root_dir / "data" / "checkpoints.db"))
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM checkpoints WHERE thread_id = ?", (thread_id,))
+    cursor.execute("DELETE FROM writes WHERE thread_id = ?", (thread_id,))
+    conn.commit()
+    conn.close()

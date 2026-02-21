@@ -120,3 +120,6 @@ cot = "full"
 
 [meta]
 generated_by = "2.9.6"
+
+[data]
+    persistence = true

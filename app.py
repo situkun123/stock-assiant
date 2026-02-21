@@ -7,6 +7,7 @@ from backend.agent import (
     create_financial_agent,
     run_financial_agent,
 )
+from backend.database import clear_thread_checkpoints
 from backend.tools import (
     get_cached_companies,
 )
@@ -55,6 +56,7 @@ async def start():
     app = create_financial_agent()
     thread_id = user.identifier
 
+    clear_thread_checkpoints(thread_id) 
     cl.user_session.set("agent", app)
     cl.user_session.set("thread_id", thread_id)
 
