@@ -7,7 +7,12 @@ from typing import Annotated, TypedDict
 
 from dotenv import load_dotenv
 from langchain_community.callbacks import get_openai_callback
-from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
+from langchain_core.messages import (
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    trim_messages,
+)
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, StateGraph
@@ -17,11 +22,10 @@ from langgraph.prebuilt import ToolNode
 from backend.database import Logger
 from backend.tools import (
     correct_period_parameter,
+    extract_stock_mentions,
     get_company_info,
     get_financial_statements,
     get_stock_history,
-    search_stock_symbol,
-    validate_stock_symbol,
 )
 
 root_dir = Path(__file__).resolve().parent.parent
@@ -39,36 +43,79 @@ class AgentState(TypedDict):
     """State object that flows through the graph."""
     messages: Annotated[Sequence[BaseMessage], add_messages]
 
+def trim_message_history(messages: Sequence[BaseMessage], max_tokens: int = 160_000) -> list[BaseMessage]:
+    """
+    Trim messages to stay under token limit.
+    Always preserves the SystemMessage and the latest HumanMessage.
+    """
+    trimmed = trim_messages(
+        messages,
+        max_tokens=max_tokens,
+        strategy="last",           # keep the most recent messages
+        token_counter=ChatOpenAI(model="gpt-4o-mini"),
+        include_system=True,       # always keep the system prompt
+        allow_partial=False,       # never cut a message in half
+        start_on="human",          # ensure trimmed history starts on a human turn
+    )
+    if len(trimmed) < len(messages):
+        dropped = len(messages) - len(trimmed)
+        print(f"⚠️  Trimmed {dropped} messages to stay under {max_tokens:,} token limit.")
+    return trimmed
 
 def call_model(state: AgentState, model, tools):
     """Call LLM with tool binding to decide next action."""
+    messages = state["messages"]
+    messages = trim_message_history(messages, max_tokens=160_000)
     model_with_tools = model.bind_tools(tools)
-    response = model_with_tools.invoke(state["messages"])
+    response = model_with_tools.invoke(messages)
     return {"messages": [response]}
 
-
 def should_continue(state: AgentState):
-    """Route to tools if needed, otherwise end. Stops after 50 total tool calls."""
-    last_message = state["messages"][-1]
+    """Route to tools, fallback, or end."""
+    messages = state["messages"]
+    last_message = messages[-1]
+
+    # Count total LLM responses (AIMessages) as a proxy for LLM calls
+    llm_calls = sum(
+        1 for m in messages
+        if hasattr(m, "type") and m.type == "ai"
+    )
+
+    if llm_calls >= 20:
+        return "fallback"
+
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
-        total_calls = sum(
+        total_tool_calls = sum(
             len(m.tool_calls)
-            for m in state["messages"]
+            for m in messages
             if hasattr(m, "tool_calls") and m.tool_calls
         )
-        # limit total tool calls to 50 for one conversation to prevent infinite loops
-        if total_calls >= 50:
-            return "end"
+        if total_tool_calls >= 50:
+            return "fallback"
         return "tools"
+
     return "end"
 
+def fallback_response(state: AgentState):
+    """Return fallback message when LLM call limit is reached."""
+    fallback = SystemMessage(
+        content="I'm sorry, I wasn't able to find a confident answer for your query. "
+                "Please try rephrasing your question or provide more specific details such as the stock symbol."
+    )
+    return {"messages": [fallback]}
 
 # ============================================================================
 # AGENT CREATION
 # ============================================================================
 def create_financial_agent():
     """Create financial analysis agent using LangGraph StateGraph."""
-    tools = [search_stock_symbol, get_company_info, get_stock_history, get_financial_statements, correct_period_parameter, validate_stock_symbol]
+    tools = [
+             get_company_info, 
+             get_stock_history, 
+             get_financial_statements, 
+             correct_period_parameter, 
+             extract_stock_mentions]
+
     model = ChatOpenAI(
         model="gpt-4o-mini",
         api_key=os.getenv("OPENAI_API_KEY"),
@@ -78,15 +125,16 @@ def create_financial_agent():
     workflow = StateGraph(AgentState)
     workflow.add_node("agent", lambda state: call_model(state, model, tools))
     workflow.add_node("tools", ToolNode(tools))
+    workflow.add_node("fallback", fallback_response)  # ← new node
 
     workflow.set_entry_point("agent")
     workflow.add_conditional_edges("agent", should_continue, {
         "tools": "tools",
+        "fallback": "fallback",  # ← route to fallback when limit hit
         "end": END
     })
-    workflow.add_conditional_edges("agent",
-                                   lambda state: "tools" if state["messages"][-1].tool_calls else "__end__")
     workflow.add_edge("tools", "agent")
+    workflow.add_edge("fallback", END) 
 
     db_path = os.getenv("CHECKPOINT_DB_PATH", str(root_dir / "data" / "checkpoints.db"))
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -94,10 +142,11 @@ def create_financial_agent():
     memory = SqliteSaver(conn)
 
     return workflow.compile(checkpointer=memory)
+    # return workflow.compile()
 
 
 def run_financial_agent(app, user_query: str, thread_id: str = "default", enable_logging: bool = True):
-    """Execute agent and return response with cost breakdown."""
+    """Execute agent and yield responses with cost breakdown."""
 
     system_prompt = """You are a financial analysis assistant. Your role is to:
                 - Analyze stock data and financial statements objectively
@@ -124,7 +173,9 @@ def run_financial_agent(app, user_query: str, thread_id: str = "default", enable
                     tool_name = tool_call.get("name", "Unknown")
                     tools_used[tool_name] = tools_used.get(tool_name, 0) + 1
 
-        response_content = result["messages"][-1].content
+            response_content = message.content
+            # print(response_content)  # Print the response content for streaming
+
         metadata = {
             "total_tokens": cb.total_tokens,
             "prompt_tokens": cb.prompt_tokens,
@@ -144,9 +195,7 @@ def run_financial_agent(app, user_query: str, thread_id: str = "default", enable
                 logger.close()
             except Exception as e:
                 print(f"⚠️  Warning: Failed to log to MotherDuck: {e}")
-
         return response_content, metadata
-
 
 
 if __name__ == "__main__":

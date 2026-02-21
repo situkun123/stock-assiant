@@ -1,13 +1,15 @@
 import os
 
+import tiktoken
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
+from pydantic import BaseModel, Field
 
 from backend.stock_fetcher import CompanyData
 
 # ============================================================================
-# CACHE
+# CACHE & UTILS
 # ============================================================================
 _company_cache = {}
 
@@ -22,44 +24,46 @@ def get_cached_companies():
     """Return list of currently cached company tickers."""
     return list(_company_cache.keys())
 
+def truncate_to_token_limit(text: str, max_tokens: int = 500) -> str:
+    enc = tiktoken.encoding_for_model("gpt-4o-mini")
+    tokens = enc.encode(text)
+    if len(tokens) > max_tokens:
+        tokens = tokens[:max_tokens]
+        return enc.decode(tokens) + "... [truncated]"
+    return text
+
+
 # ============================================================================
 # TOOLS
 # ============================================================================
-@tool
-def validate_stock_symbol(symbol: str) -> str:
-    """
-    Validate if a stock symbol is correct for Yahoo Finance and suggest corrections if needed use LLM.
-    """
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+# @tool
+# def validate_stock_symbol(symbol: str) -> str:
+#     """
+#     Validate if a stock symbol is correct for Yahoo Finance and suggest corrections if needed use LLM.
+#     """
 
-    prompt = f"""Validate the stock ticker symbol '{symbol}' for Yahoo Finance.
+#     llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
-        Instructions:
-        1. If '{symbol}' is a valid Yahoo Finance ticker, respond with: "VALID: {symbol}"
-        2. If '{symbol}' is incorrect but you know the correct ticker, respond with: "CORRECTED: [correct_symbol] (was: {symbol})"
-        3. If '{symbol}' looks like a company name instead of a ticker, respond with: "SYMBOL: [ticker] (for company: {symbol})"
-        4. If you're not sure or it's not publicly traded, respond with: "UNKNOWN: {symbol}"
+#     prompt = f"""Validate the stock ticker symbol '{symbol}' for Yahoo Finance.
 
-        Examples:
-        - Input: "AAPL" → "VALID: AAPL"
-        - Input: "APPL" → "CORRECTED: AAPL (was: APPL)"
-        - Input: "Apple" → "SYMBOL: AAPL (for company: Apple)"
-        - Input: "GOOG" → "CORRECTED: GOOGL (was: GOOG)" [Note: GOOGL is the primary ticker]
-        - Input: "XYZ123" → "UNKNOWN: XYZ123"
+#         Instructions:
+#         1. If '{symbol}' is a valid Yahoo Finance ticker, respond with: "VALID: {symbol}"
+#         2. If '{symbol}' is incorrect but you know the correct ticker, respond with: "CORRECTED: [correct_symbol] (was: {symbol})"
+#         3. If '{symbol}' looks like a company name instead of a ticker, respond with: "SYMBOL: [ticker] (for company: {symbol})"
+#         4. If you're not sure or it's not publicly traded, respond with: "UNKNOWN: {symbol}"
 
-        Respond with ONLY one of the formats above, nothing else."""
+#         Examples:
+#         - Input: "AAPL" → "VALID: AAPL"
+#         - Input: "APPL" → "CORRECTED: AAPL (was: APPL)"
+#         - Input: "Apple" → "SYMBOL: AAPL (for company: Apple)"
+#         - Input: "GOOG" → "CORRECTED: GOOGL (was: GOOG)" [Note: GOOGL is the primary ticker]
+#         - Input: "XYZ123" → "UNKNOWN: XYZ123"
 
-    response = llm.invoke(prompt)
-    return response.content.strip()
+#         Respond with ONLY one of the formats above, nothing else."""
 
-@tool
-def search_stock_symbol(company_name: str) -> str:
-    """Search for a stock ticker symbol for a given company name."""
-    try: 
-        output = CompanyData.search_stock_symbol(company_name)
-        return output['found']['symbol'][:3]  # Return the best match symbol, truncated to 3 for cost control
-    except Exception:
-        return "UNKNOWN"
+#     response = llm.invoke(prompt)
+#     return response.content.strip()
+
 @tool
 def get_company_info(ticker: str):
     """Fetch key company metrics like P/E ratio, Market Cap, and business summary."""
@@ -141,3 +145,84 @@ def correct_period_parameter(invalid_period: str) -> str:
 
     # Default fallback
     return '1mo'
+
+
+class StockMentions(BaseModel):
+    symbols: list[str] = Field(description="Explicit ticker symbols found e.g. AAPL, TSLA")
+    companies: list[str] = Field(description="Company names found e.g. Apple, Tesla")
+
+@tool
+def extract_stock_mentions(query: str) -> dict:
+    """
+    Extract stock ticker symbols and company names from a user query,
+    then search for their symbols. Returns structured data ready for further analysis.
+    """
+    query = truncate_to_token_limit(query, max_tokens=1000)
+    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    structured_model = model.with_structured_output(StockMentions)
+
+    result: StockMentions = structured_model.invoke([
+        {
+            "role": "system",
+            "content": (
+                "You are a financial entity extractor. Your job is to extract ONLY explicitly mentioned stock tickers and company names.\n\n"
+                "RULES:\n"
+                "- Ticker symbols are usually 1-5 uppercase letters (e.g. AAPL, TSLA, GOOGL)\n"
+                "- Do NOT extract common English words that happen to be uppercase (e.g. 'IT', 'AI', 'US')\n"
+                "- Do NOT infer tickers from company names — only extract what is literally written\n"
+                "- Include informal references if unambiguous (e.g. 'the EV maker Elon runs' → Tesla)\n"
+                "- Normalize company names to their official form (e.g. 'Meta' → 'Meta Platforms')\n"
+                "- If a ticker and company refer to the same entity, include both\n"
+                "- Return empty lists if nothing is explicitly mentioned"
+            )
+        },
+        {
+            "role": "user",
+            "content": query
+        }
+    ])
+
+    resolved = []
+
+    # If tickers were directly mentioned, use them as-is
+    for symbol in result.symbols:
+        resolved.append({
+            "symbol": symbol,
+            "source": "ticker_mentioned",
+            "search_result": None
+        })
+
+    # For company names, search for their ticker
+    for company in result.companies:
+        # Skip if we already have a ticker for this company
+        already_found = any(r["symbol"].upper() == company.upper() for r in resolved)
+        if already_found:
+            continue
+
+        search_result = CompanyData.search_stock_symbol(company)
+        if search_result["found"]:
+            resolved.append({
+                "symbol": search_result["symbol"],
+                "name": search_result["name"],
+                "source": "company_name_searched",
+                "search_result": search_result
+            })
+        else:
+            resolved.append({
+                "symbol": None,
+                "name": company,
+                "source": "company_name_searched",
+                "search_result": search_result
+            })
+
+    return {
+        "mentions": {
+            "symbols": result.symbols,
+            "companies": result.companies
+        },
+        "resolved": resolved,
+        "summary": (
+            f"Found {len(result.symbols)} ticker(s) and {len(result.companies)} company name(s). "
+            f"Resolved {sum(1 for r in resolved if r['symbol'])} to valid symbols."
+        )
+    }

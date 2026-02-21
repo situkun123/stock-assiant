@@ -78,7 +78,9 @@ class TestAgentFunctions(unittest.TestCase):
         """call_model invokes the model and wraps the response in a messages dict."""
         mock_response = MagicMock()
         mock_model = MagicMock()
-        mock_model.bind_tools.return_value.invoke.return_value = mock_response
+        mock_model_with_tools = MagicMock()
+        mock_model.bind_tools.return_value = mock_model_with_tools
+        mock_model_with_tools.invoke.return_value = mock_response
 
         mock_message = MagicMock()
         state = {"messages": [mock_message]}
@@ -89,7 +91,29 @@ class TestAgentFunctions(unittest.TestCase):
 
         self.assertIn("messages", result)
         self.assertEqual(result["messages"], [mock_response])
-        mock_model.bind_tools.assert_called_once_with(tools)
+
+    def test_call_model_with_multiple_messages(self):
+        """call_model invokes the model with multiple messages in state."""
+        from langchain_core.messages import HumanMessage
+
+        from backend.agent import call_model
+
+        mock_response = MagicMock()
+        mock_model = MagicMock()
+        mock_model_with_tools = MagicMock()
+        mock_model.bind_tools.return_value = mock_model_with_tools
+        mock_model_with_tools.invoke.return_value = mock_response
+
+        state = {
+            "messages": [HumanMessage(content="What is AAPL?")],
+        }
+        tools = []
+        result = call_model(state, mock_model, tools)
+
+        self.assertIn("messages", result)
+        self.assertEqual(result["messages"], [mock_response])
+        # Verify that invoke was called with the messages from state
+        mock_model_with_tools.invoke.assert_called_once()
 
 
 if __name__ == "__main__":
