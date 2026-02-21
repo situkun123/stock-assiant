@@ -43,7 +43,7 @@ class AgentState(TypedDict):
     """State object that flows through the graph."""
     messages: Annotated[Sequence[BaseMessage], add_messages]
 
-def trim_message_history(messages: Sequence[BaseMessage], max_tokens: int = 160_000) -> list[BaseMessage]:
+def trim_message_history(messages: Sequence[BaseMessage], max_tokens: int = 160000) -> list[BaseMessage]:
     """
     Trim messages to stay under token limit.
     Always preserves the SystemMessage and the latest HumanMessage.
@@ -65,7 +65,7 @@ def trim_message_history(messages: Sequence[BaseMessage], max_tokens: int = 160_
 def call_model(state: AgentState, model, tools):
     """Call LLM with tool binding to decide next action."""
     messages = state["messages"]
-    messages = trim_message_history(messages, max_tokens=160_000)
+    messages = trim_message_history(messages, max_tokens=160000)
     model_with_tools = model.bind_tools(tools)
     response = model_with_tools.invoke(messages)
     return {"messages": [response]}
